@@ -27,6 +27,7 @@ def set_coins(db, session):
     cbc = app.api.encr_decr.Encryption(encryption_key)
     try:
         dpt = cbc.decrypt(ctxt_bytes)
+        print("decrypted admin cookie: " + str(dpt))
     except ValueError as exc:
         response.status = 400
         return template(

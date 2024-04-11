@@ -103,6 +103,8 @@ class HashTable:
         entry_hval = self.get_hash(e.key)
         #print("hash value is: " + str(entry_hval))
         table_index = entry_hval % self.size
+        print("--------------------------------------")
+        print("hash bucket: " + str(table_index))
         if print_loads:
             print("Bucket loads:" + str(list(self.table[x].get_size() for x in range(self.size))))
         return self.table[table_index].add_entry(e)
