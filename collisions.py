@@ -13,26 +13,36 @@ def ht_hash(hashkey, inval, htsize):
 #Your function should output the colliding strings in a list.
 def find_collisions(key, total_collisions):
     collisions = {}
-    attempts = 0
-    while True:
-        l = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
-        hash_value = ht_hash(key, l.encode('utf-8'), 2**16)
+    max_len = 0
+    while max_len < total_collisions:
+        rand_str = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+        hash_value = ht_hash(key, rand_str.encode('utf-8'), 2**16)
         if hash_value in collisions:
-            collisions[hash_value].append(l)
-            if len(collisions[hash_value]) >= total_collisions:
+            collisions[hash_value].append(rand_str)
+            curr_bucket_len = len(collisions[hash_value])
+            if (curr_bucket_len > max_len):
+                print("A bucket reached " + str(curr_bucket_len) 
+                    + " colliding strings (program stops at " + str(total_collisions) + ")")
+                max_len = curr_bucket_len
+            if curr_bucket_len >= total_collisions:
                 return collisions[hash_value]
         else:
-            collisions[hash_value] = [l]
-        attempts += 1
-        if attempts % 100000 == 0:
-            print(f"Attempted {attempts} strings.")
+            collisions[hash_value] = [rand_str]
 
 #Implement this function, which takes the list of
 #collisions and verifies they all have the same
 #SipHash output under the given key.
 def check_collisions(key, colls):
-    expected_hash = ht_hash(key, colls[0].encode('utf-8'), 2**16)
-    return all(ht_hash(key, l.encode('utf-8'), 2**16) == expected_hash for l in colls)
+    identical_bucket = ht_hash(key, colls[0].encode('utf-8'), 2**16)
+
+    for string in colls:
+        curr_bucket = ht_hash(key, string.encode('utf-8'), 2**16)
+        if curr_bucket != identical_bucket:
+            # collision not matching, return false
+            return False
+
+    # all have the same hash
+    return True
 
 if __name__=='__main__':
     #Look in the source code of the app to
@@ -42,4 +52,10 @@ if __name__=='__main__':
     # in this case we find 20 collisions
     colls = find_collisions(key, 20)
     print("Collisions:", colls)
-    print("Do all collisions hash to the same value?", "Yes" if check_collisions(key, colls) else "No")
+
+    # verify if collisions hash to same bucket
+    if (check_collisions(key, colls)):
+        # all collisions go to same bucket
+        print("All collisions hash to same bucket")
+    else:
+        print("ERROR: collisions DO NOT hash to same bucket")
