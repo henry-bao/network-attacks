@@ -30,8 +30,8 @@ def do_attack():
 	print("Starting attack")
 	sess = Session()
   	#you'll need to change this to a non-admin user, such as 'victim'.
-	uname ="henry"
-	pw = "bao"
+	uname ="victim"
+	pw = "victim"
 	print("Logging in as " + uname)
 	assert(do_login_form(sess, uname,pw))
 	#Maul the admin cookie in the 'sess' object here

