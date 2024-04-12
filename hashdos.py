@@ -26,7 +26,7 @@ def do_attack():
 
 	# find 1000 collisions
 	key = b'\x00'*16
-	collisions_1000 = find_collisions(key, 50)
+	collisions_1000 = find_collisions(key, 1000)
 	print("test")
 	collisions_dict = {}
 	for i, c in enumerate(collisions_1000):
